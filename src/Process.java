@@ -1,7 +1,7 @@
-//The class of the process
 class Process {
     private int arrivalTime;
     private int burstTime;
+    private int priority;
     private int waitingTime;
     private String name;
 
@@ -12,17 +12,14 @@ class Process {
         waitingTime = 0;
     }
 
-    // Get the arrive time value
     public int getArrivalTime() {
         return arrivalTime;
     }
 
-    // Set the arrive time value
     public void setArrivalTime(int arrivalTime) {
         this.arrivalTime = arrivalTime;
     }
 
-    // Get the burst time value
     public int getBurstTime() {
         return burstTime;
     }
@@ -31,12 +28,10 @@ class Process {
         return waitingTime;
     }
 
-    // Set the burst time value
     public void setBurstTime(int burstTime) {
         this.burstTime = burstTime;
     }
 
-    // Get the process name
     public String getName() {
 
         return name;
