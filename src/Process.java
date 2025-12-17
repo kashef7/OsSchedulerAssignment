@@ -27,9 +27,19 @@ class Process {
     public int getWaitingTime() {
         return waitingTime;
     }
-
+    public void setWaitingTime(int waitingTime){
+        this.waitingTime = waitingTime;
+    }
     public void setBurstTime(int burstTime) {
         this.burstTime = burstTime;
+    }
+
+    public void setPriority(int priority) {
+        this.priority = priority;
+    }
+
+    public int getPriority() {
+        return priority;
     }
 
     public String getName() {
