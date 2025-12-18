@@ -10,6 +10,7 @@ public class Process {
     public Process(int arriveTime, int burstTime, String name) {
         this.arrivalTime = arriveTime;
         this.burstTime = burstTime;
+        this.remainingTime = burstTime;
         this.name = name;
         waitingTime = 0;
     }

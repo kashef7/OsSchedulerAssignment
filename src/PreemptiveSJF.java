@@ -1,33 +1,70 @@
-import java.util.ArrayList;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Scanner;
+import java.util.*;
 
 public class PreemptiveSJF extends Scheduler {
 
-    PriorityQueue<Process> readyQueue =  new PriorityQueue<>((a, b) -> Integer.compare(a.getPriority(), b.getPriority()));
+    PriorityQueue<Process> readyQueue = new PriorityQueue<>((a, b) -> {
+        if (a.getRemainingTime() != b.getRemainingTime()) {
+            return Integer.compare(a.getRemainingTime(), b.getRemainingTime());
+        }
+        return Integer.compare(a.getArrivalTime(), b.getArrivalTime());
+    });
+
+    List<Process> processesWithData = new ArrayList<>();
 
     @Override
     void schedule(int noOfProcesses, int roundRobinTimeQuantum, int ContextSwitching) {
-        Scanner scanner = new Scanner(System.in);
-        List<Process> finishedProcess = new ArrayList<>();
-        String name;
-        int arrivalTime;
-        int burstTime;
         int totalTime = 0;
-        for(int i = 0; i < noOfProcesses;i++){
-            System.out.println("Enter Process:" +i+" name:");
-            name = scanner.next();
-            System.out.println("Enter Process:" +i+" Arrival Time:");
-            arrivalTime = scanner.nextInt();
-            System.out.println("Enter Process:" +i+" Burst Time:");
-            burstTime = scanner.nextInt();
-            Process process = new Process(arrivalTime,burstTime,name);
-            process.setPriority(burstTime);
-            processes.add(process);
+        int completed = 0;
+        Process currentProcess = null;
+        List<Process> incomingProcesses = new ArrayList<>(processes);
+        processesWithData.clear();
+        ExcutionOrder.clear();
+
+        while (completed < noOfProcesses) {
+            checkArrivals(incomingProcesses, totalTime);
+            if (currentProcess != null && !readyQueue.isEmpty()) {
+                if (readyQueue.peek().getRemainingTime() < currentProcess.getRemainingTime()) {
+                    readyQueue.add(currentProcess);
+                    currentProcess = null;
+                }
+            }
+
+            if (currentProcess == null && !readyQueue.isEmpty()) {
+                Process nextProcess = readyQueue.poll();
+
+                if (totalTime > 0) {
+                    for (int i = 0; i < ContextSwitching; i++) {
+                        totalTime++;
+                        checkArrivals(incomingProcesses, totalTime);
+                    }
+                }
+                currentProcess = nextProcess;
+                ExcutionOrder.add(currentProcess.getName());
+            }
+            if (currentProcess != null) {
+                currentProcess.setRemainingTime(currentProcess.getRemainingTime() - 1);
+                totalTime++;
+                if (currentProcess.getRemainingTime() == 0) {
+                    currentProcess.setTurnAroundTime(totalTime - currentProcess.getArrivalTime());
+                    currentProcess.setWaitingTime(currentProcess.getTurnAroundTime() - currentProcess.getBurstTime());
+                    processesWithData.add(currentProcess);
+                    completed++;
+                    currentProcess = null;
+                }
+            } else {
+                totalTime++;
+            }
         }
-        while(finishedProcess.size() < noOfProcesses){
-            continue;
+    }
+
+    private void checkArrivals(List<Process> incoming, int time) {
+        Iterator<Process> iterator = incoming.iterator();
+        while (iterator.hasNext()) {
+            Process p = iterator.next();
+            if (p.getArrivalTime() <= time) {
+                readyQueue.add(p);
+                iterator.remove();
+            }
         }
     }
 }

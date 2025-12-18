@@ -2,7 +2,6 @@ import java.util.*;
 
 public class RoundRobin extends Scheduler {
     Queue<Process> processQueue = new LinkedList<>();
-    Queue<String> ExcutionOrder = new LinkedList<>();
 
     @Override
     void schedule(int noOfProcesses, int roundRobinTimeQuantum, int ContextSwitching) {
