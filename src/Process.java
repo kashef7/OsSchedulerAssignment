@@ -3,6 +3,7 @@ public class Process {
     private int burstTime;
     private int priority;
     private int waitingTime;
+    private int turnAroundTime;
     private String name;
 
     public Process(int arriveTime, int burstTime, String name) {
@@ -27,9 +28,11 @@ public class Process {
     public int getWaitingTime() {
         return waitingTime;
     }
-    public void setWaitingTime(int waitingTime){
+
+    public void setWaitingTime(int waitingTime) {
         this.waitingTime = waitingTime;
     }
+
     public void setBurstTime(int burstTime) {
         this.burstTime = burstTime;
     }
@@ -40,6 +43,14 @@ public class Process {
 
     public int getPriority() {
         return priority;
+    }
+
+    public void setTurnAroundTime(int turnAroundTime) {
+        this.turnAroundTime = turnAroundTime;
+    }
+
+    public int getTurnAroundTime() {
+        return turnAroundTime;
     }
 
     public String getName() {
