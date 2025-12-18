@@ -2,6 +2,7 @@ public class Process {
     private int arrivalTime;
     private int burstTime;
     private int priority;
+    private int remainingTime;
     private int waitingTime;
     private int turnAroundTime;
     private String name;
@@ -43,6 +44,14 @@ public class Process {
 
     public int getPriority() {
         return priority;
+    }
+
+    public int getRemainingTime() {
+        return remainingTime;
+    }
+
+    public void setRemainingTime(int remainingTime) {
+        this.remainingTime = remainingTime;
     }
 
     public void setTurnAroundTime(int turnAroundTime) {
