@@ -6,6 +6,7 @@ public class Process {
     private int waitingTime;
     private int turnAroundTime;
     private String name;
+    private int waitingCounter; 
 
     public Process(int arriveTime, int burstTime, String name) {
         this.arrivalTime = arriveTime;
@@ -66,5 +67,17 @@ public class Process {
     public String getName() {
 
         return name;
+    }
+
+      public void resetWaitingCounter() {
+        this.waitingCounter = 0;
+    }
+
+    public void incrementWaitingCounter() {
+        this.waitingCounter++;
+    }
+
+    public int getWaitingCounter() {
+        return this.waitingCounter;
     }
 }
