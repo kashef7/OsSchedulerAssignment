@@ -1,21 +1,29 @@
-import java.lang.reflect.Executable;
+import java.util.ArrayList;
 import java.util.List;
 
-public class Main{
+public class Main {
     public static void main(String[] args) {
-        PreemptiveSJF preemptiveSJF = new PreemptiveSJF();
-        Process p1 = new Process(0,6,"p1");
-        Process p2 = new Process(0,3,"p2");
-        Process p3 = new Process(0,8,"p3");
-        Process p4 = new Process(0,4,"p4");
-        Process p5 = new Process(0,2,"p5");
-        preemptiveSJF.processes = List.of(new Process[]{p1, p2, p3, p4, p5});
-        preemptiveSJF.schedule(5,0,1);
-        while(!preemptiveSJF.ExcutionOrder.isEmpty()){
-            System.out.println(preemptiveSJF.ExcutionOrder.poll());
-        }
-        for(Process process: preemptiveSJF.processesWithData){
-            System.out.print("name:"+process.getName() +","+"Waiting Time:"+process.getWaitingTime() + "," + "Turnaround Time:" + process.getTurnAroundTime() + "\n");
-        }
+        List<Process> processes = new ArrayList<>();
+
+        // Loading values from your test case
+        Process p1 = new Process(0, 17, "P1");
+        p1.setPriority(4); p1.setQuantum(7);
+
+        Process p2 = new Process(2, 6, "P2");
+        p2.setPriority(7); p2.setQuantum(9);
+
+        Process p3 = new Process(5, 11, "P3");
+        p3.setPriority(3); p3.setQuantum(4);
+
+        Process p4 = new Process(15, 4, "P4");
+        p4.setPriority(6); p4.setQuantum(6);
+
+        processes.add(p1);
+        processes.add(p2);
+        processes.add(p3);
+        processes.add(p4);
+
+        AgScheduler scheduler = new AgScheduler();
+        scheduler.schedule(processes);
     }
 }
