@@ -39,9 +39,9 @@ public class Main {
 
         String testsDir;
         if (schedulerKey.equals("AG")) {
-            testsDir = "../test_cases_v5/AG";// change to /test_cases_v5/AG when running from windows
+            testsDir = "test_cases_v5/AG";// change to test_cases_v5/AG when running from windows 
         } else {
-            testsDir = "../test_cases_v5/Other_Schedulers";//change to /test_cases_v5/Other_Schedulers when running from windows
+            testsDir = "test_cases_v5/Other_Schedulers";//change to test_cases_v5/Other_Schedulers when running from windows
         }
 
         List<Path> files = Files.list(Paths.get(testsDir))
@@ -315,8 +315,7 @@ public class Main {
         }
     }
 
-    // parse expectedOutput for the chosen scheduler
-  private static Map<String,Object> parseExpectedForScheduler(String json, String schedulerKey) {
+private static Map<String,Object> parseExpectedForScheduler(String json, String schedulerKey) {
     Map<String,Object> out = new HashMap<>();
     int expIdx = json.indexOf("\"expectedOutput\"");
     if (expIdx < 0) return out;
@@ -349,10 +348,29 @@ public class Main {
     List<String> exec = parseStringArrayField(targetBlock, "executionOrder");
     out.put("executionOrder", exec);
 
-    // Remove per-process parsing: set processResults to null so runner skips per-process checks
-    out.put("processResults", null);
+    // processResults array
+    List<Map<String,Object>> pres = new ArrayList<>();
+    Pattern prPat = Pattern.compile("\"processResults\"\\s*:\\s*\\[([^\\]]*)\\]", Pattern.DOTALL);
+    Matcher prM = prPat.matcher("{" + targetBlock + "}");
+    if (prM.find()) {
+        String prArray = prM.group(1);
+        Pattern objPat = Pattern.compile("\\{([^}]*)\\}", Pattern.DOTALL);
+        Matcher m2 = objPat.matcher(prArray);
+        while (m2.find()) {
+            String o = m2.group(1);
+            String name = matchStringField(o, "name");
+            Integer waiting = matchIntFieldRaw(o, "waitingTime");
+            Integer turn = matchIntFieldRaw(o, "turnaroundTime");
+            Map<String,Object> map = new HashMap<>();
+            if (name != null) map.put("name", name);
+            if (waiting != null) map.put("waitingTime", waiting.doubleValue());
+            if (turn != null) map.put("turnaroundTime", turn.doubleValue());
+            pres.add(map);
+        }
+    }
+    out.put("processResults", pres);
 
-    // averages (read from the correctly extracted targetBlock)
+    // averages (now read from the correctly extracted targetBlock)
     Double avgW = matchDoubleField(targetBlock, "averageWaitingTime");
     Double avgT = matchDoubleField(targetBlock, "averageTurnaroundTime");
     out.put("averageWaitingTime", avgW);
@@ -360,7 +378,6 @@ public class Main {
 
     return out;
 }
-
     private static List<String> parseStringArrayField(String block, String key) {
         Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*\\[([^\\]]*)\\]", Pattern.DOTALL);
         Matcher m = p.matcher(block);
