@@ -21,6 +21,7 @@ public class Process {
         this.remainingTime = burstTime;
         this.name = name;
         waitingTime = 0;
+        // The first quantum is usually added upon initialization in the AG logic
     }
 
     // --- Added functions for AG Scheduler ---
@@ -30,7 +31,25 @@ public class Process {
     public boolean isFinished() { return remainingTime == 0; }
     public void reduceRemaining() { this.remainingTime--; }
 
-    // --- Original functions ---
+    // --- NEW: Threshold helpers to match the screenshot logic ---
+    
+    /**
+     * Calculates the non-preemptive limit (ceil of 50%).
+     * As seen in the screenshot: P1 (Q=7) -> ceil(50%) = 4.
+     */
+    public int getNonPreemptiveLimit() {
+        return (int) Math.ceil(0.5 * this.quantum);
+    }
+
+    /**
+     * Calculates the priority check limit (ceil of 25%).
+     * As seen in the screenshot: P1 (Q=7) -> ceil(25%) = 2.
+     */
+    public int getPriorityLimit() {
+        return (int) Math.ceil(0.25 * this.quantum);
+    }
+
+    // --- Original functions (RETAINED) ---
     public int getArrivalTime() { return arrivalTime; }
     public void setArrivalTime(int arrivalTime) { this.arrivalTime = arrivalTime; }
     public int getBurstTime() { return burstTime; }
@@ -52,7 +71,8 @@ public class Process {
     public void addQuantumHistory(int quantum){ this.quantumHistory.add(quantum); }
     public ArrayList<Integer> getQuantumHistory(){ return quantumHistory; }
     public String getName() { return name; }
-      public void resetWaitingCounter() {
+    
+    public void resetWaitingCounter() {
         this.waitingCounter = 0;
     }
     public void incrementWaitingCounter() {
@@ -61,4 +81,9 @@ public class Process {
     public int getWaitingCounter() {
         return this.waitingCounter;
     } 
+
+    public void updateQuantum(int quantum) {
+        this.quantum = quantum;
+        addQuantumHistory(quantum); // Only log when quantum actually changes
+    }
 }
