@@ -1,121 +1,224 @@
 import java.util.*;
+import static java.lang.Math.*;
 
-public class AgScheduler {
-    private LinkedList<Process> readyQueue = new LinkedList<>();
-    private List<Process> finishedProcesses = new ArrayList<>();
-    private List<String> executionOrder = new ArrayList<>();
+public class AgScheduler extends Scheduler {
+    private List<Process> readyQueue = new ArrayList<>();
+    private List<Process> completedProcesses = new ArrayList<>();
+    private List<String> ganttChart = new ArrayList<>();
+    private int currentTime = 0;
+    private int segmentStartTime = 0;
+    private String runningProcessName = "";
 
-    public void schedule(List<Process> processes) {
-        int currentTime = 0;
+        @Override
+    void schedule(int noOfProcesses, int roundRobinTimeQuantum, int ContextSwitching) {
+        // Ensure processes are sorted by arrival time
+        processes.sort(Comparator.comparingInt(Process::getArrivalTime));
+        int arrivalIndex = 0;
         Process currentProcess = null;
-        int totalProcesses = processes.size();
+        int timeInCurrentQuantum = 0;
 
-        List<Process> pool = new ArrayList<>(processes);
-        pool.sort(Comparator.comparingInt(Process::getArrivalTime));
+        // Initial load for t=0
+        arrivalIndex = updateArrivingProcesses(arrivalIndex);
 
-        while (finishedProcesses.size() < totalProcesses) {
-            // 1. Arrival Check
-            checkArrivals(pool, currentTime);
-
-            // 2. Pick next process if CPU is idle
-            if (currentProcess == null && !readyQueue.isEmpty()) {
-                currentProcess = readyQueue.poll();
-                if (executionOrder.isEmpty() || !executionOrder.get(executionOrder.size()-1).equals(currentProcess.getName())) {
-                    executionOrder.add(currentProcess.getName());
+        while (completedProcesses.size() < noOfProcesses) {
+            // If no current process, pick from head of readyQueue or advance time if empty
+            if (currentProcess == null) {
+                if (readyQueue.isEmpty()) {
+                    currentTime++;
+                    arrivalIndex = updateArrivingProcesses(arrivalIndex);
+                    continue;
+                } else {
+                    currentProcess = readyQueue.remove(0);
+                    timeInCurrentQuantum = 0;
+                    // start new segment
+                    runningProcessName = currentProcess.getName();
+                    segmentStartTime = currentTime;
+                    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
+                        ExcutionOrder.add(runningProcessName);
+                    }
                 }
             }
 
-            if (currentProcess != null) {
-                // Execute for 1 unit
-                currentProcess.reduceRemaining();
-                currentProcess.incrementUsed();
-                currentTime++;
+            // Execute one time unit
+            executeOneUnit(currentProcess);
+            // increment counters
+            timeInCurrentQuantum++;
+            arrivalIndex = updateArrivingProcesses(arrivalIndex);
 
-                // Thresholds
-                int q = currentProcess.getQuantum();
-                int q25 = (int) Math.ceil(0.25 * q);
-                int q50 = (int) Math.ceil(0.50 * q);
-                int consumed = currentProcess.getCurrentQuantumUsed();
+            // If process finished, finalize and continue
+            if (currentProcess.isFinished()) {
+                recordGanttForRunning();
+                currentProcess.updateQuantum(0);
+                currentProcess.setTurnAroundTime(currentTime - currentProcess.getArrivalTime());
+                currentProcess.setWaitingTime(currentProcess.getTurnAroundTime() - currentProcess.getBurstTime());
+                completedProcesses.add(currentProcess);
+                currentProcess = null;
+                timeInCurrentQuantum = 0;
+                continue;
+            }
 
-                // Check for Arrivals AGAIN because time moved
-                checkArrivals(pool, currentTime);
+            // AG Quantum logic
+            int Q = currentProcess.getQuantum();
+            int limit1 = (int) Math.ceil(Q * 0.25);              // 25% threshold (priority check)
+            int limit2 = limit1 + (int) Math.ceil(Q * 0.25);    // cumulative after next 25% (as in reference)
+            boolean preempted = false;
 
-                // --- SCENARIO IV: Finished ---
-                if (currentProcess.isFinished()) {
-                    currentProcess.setQuantum(0);
-                    currentProcess.setTurnAroundTime(currentTime - currentProcess.getArrivalTime());
-                    currentProcess.setWaitingTime(currentProcess.getTurnAroundTime() - currentProcess.getBurstTime());
-                    finishedProcesses.add(currentProcess);
+            // Scenario II: after reaching limit1 (priority-based)
+            if (timeInCurrentQuantum == limit1) {
+                Process best = getBestPriority();
+                // find strictly better priority in readyQueue
+                if (best != null && best.getPriority() < currentProcess.getPriority()) {
+                    // close current segment
+                    recordGanttForRunning();
+
+                    int unused = Q - timeInCurrentQuantum;
+                    int newQ = Q + (int) Math.ceil(unused / 2.0); // Mean rule
+                    currentProcess.updateQuantum(newQ);
+
+                    // requeue current at tail
                     currentProcess.resetUsed();
-                    currentProcess = null;
-                }
-                // --- SCENARIO I: Quantum Exhausted ---
-                else if (consumed == q) {
-                    currentProcess.setQuantum(q + 2);
                     readyQueue.add(currentProcess);
+
+                    // remove chosen best from readyQueue and switch to it
+                    readyQueue.remove(best);
+                    currentProcess = best;
+                    // start new segment for new current process
+                    runningProcessName = currentProcess.getName();
+                    segmentStartTime = currentTime;
+                    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
+                        ExcutionOrder.add(runningProcessName);
+                    }
+                    timeInCurrentQuantum = 0;
+                    preempted = true;
+                }
+            }
+
+            // Scenario III: after reaching or passing limit2 (SJF preemption)
+            if (!preempted && timeInCurrentQuantum >= limit2) {
+                Process bestSJ = getShortestJob();
+                if (bestSJ != null && bestSJ.getRemainingTime() < currentProcess.getRemainingTime()) {
+                    // close current segment
+                    recordGanttForRunning();
+
+                    int unused = Q - timeInCurrentQuantum;
+                    int newQ = Q + unused; // Sum rule
+                    currentProcess.updateQuantum(newQ);
+
+                    // requeue current at tail
                     currentProcess.resetUsed();
-                    currentProcess = null;
-                }
-                // --- SCENARIO III: SJF Phase (50% - 100%) ---
-                else if (consumed >= q50) {
-                    Process shortest = getShortestJob();
-                    if (shortest != null && shortest.getRemainingTime() < currentProcess.getRemainingTime()) {
-                        currentProcess.setQuantum(q + (q - consumed));
-                        readyQueue.add(currentProcess);
-                        currentProcess.resetUsed();
-                        currentProcess = null;
+                    readyQueue.add(currentProcess);
+
+                    // switch to shortest job immediately
+                    readyQueue.remove(bestSJ);
+                    currentProcess = bestSJ;
+                    runningProcessName = currentProcess.getName();
+                    segmentStartTime = currentTime;
+                    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
+                        ExcutionOrder.add(runningProcessName);
                     }
+                    timeInCurrentQuantum = 0;
+                    preempted = true;
                 }
-                // --- SCENARIO II: Priority Phase (25% - 50%) ---
-                else if (consumed >= q25) {
-                    Process bestPrio = getBestPriority();
-                    if (bestPrio != null && bestPrio.getPriority() < currentProcess.getPriority()) {
-                        currentProcess.setQuantum(q + (int)Math.ceil((q - consumed) / 2.0));
-                        readyQueue.add(currentProcess);
-                        currentProcess.resetUsed();
-                        currentProcess = null;
-                    }
-                }
-            } else {
-                currentTime++;
+            }
+
+            // Scenario I: quantum exhausted exactly
+            if (!preempted && timeInCurrentQuantum == Q) {
+                // close current segment
+                recordGanttForRunning();
+
+                int newQ = Q + 2; // increase rule
+                currentProcess.updateQuantum(newQ);
+                currentProcess.resetUsed();
+                readyQueue.add(currentProcess);
+
+                currentProcess = null;
+                timeInCurrentQuantum = 0;
             }
         }
+
+        // print at end (existing method)
         printResults();
     }
+    // execute one time unit for process p (does NOT add to execution order repeatedly)
+    private void executeOneUnit(Process p) {
+        p.reduceRemaining();
+        p.incrementUsed();
+        currentTime++;
+    }
 
-    private void checkArrivals(List<Process> pool, int time) {
-        Iterator<Process> it = pool.iterator();
-        while (it.hasNext()) {
-            Process p = it.next();
-            if (p.getArrivalTime() <= time) {
-                readyQueue.add(p);
-                it.remove();
-            }
+    // record the currently running process's segment into ganttChart (if any duration)
+    private void recordGanttForRunning() {
+        if (!runningProcessName.isEmpty() && currentTime > segmentStartTime) {
+            ganttChart.add(runningProcessName + "|" + segmentStartTime + "-" + currentTime);
         }
+    }
+
+    private void handlePreemption(Process p) {
+        p.resetUsed();
+        readyQueue.add(p);
+    }
+
+    private int updateArrivingProcesses(int index) {
+        while (index < processes.size() && processes.get(index).getArrivalTime() <= currentTime) {
+            Process arriving = processes.get(index);
+            if (!readyQueue.contains(arriving)) {
+                readyQueue.add(arriving);
+            }
+            index++;
+        }
+        return index;
     }
 
     private Process getBestPriority() {
-        if (readyQueue.isEmpty()) return null;
-        return readyQueue.stream().min(Comparator.comparingInt(Process::getPriority)).get();
+        return readyQueue.stream().min(Comparator.comparingInt(Process::getPriority)).orElse(null);
     }
 
     private Process getShortestJob() {
-        if (readyQueue.isEmpty()) return null;
-        return readyQueue.stream().min(Comparator.comparingInt(Process::getRemainingTime)).get();
+        return readyQueue.stream()
+            .min(Comparator.comparingInt(Process::getRemainingTime)
+                .thenComparingInt(Process::getArrivalTime))
+            .orElse(null);
+    }
+    private void printResults() {
+       System.out.println("Gantt Chart: " + String.join(" | ", ganttChart));
+    System.out.println("\n\"executionOrder\": " + ExcutionOrder + ",");
+    System.out.println("\"processResults\": [");
+
+    // Make a sorted copy of completedProcesses by process name (P1, P2, P3...)
+    List<Process> sorted = new ArrayList<>(completedProcesses);
+    sorted.sort((a, b) -> {
+        String na = a.getName();
+        String nb = b.getName();
+        // try to extract numeric suffix for numeric ordering
+        Integer ia = null, ib = null;
+        try {
+            ia = Integer.valueOf(na.replaceAll("\\D+", ""));
+        } catch (Exception e) { /* ignore */ }
+        try {
+            ib = Integer.valueOf(nb.replaceAll("\\D+", ""));
+        } catch (Exception e) { /* ignore */ }
+        if (ia != null && ib != null) return ia.compareTo(ib);
+        return na.compareTo(nb);
+    });
+
+    double totalWait = 0;
+    double totalTurn = 0;
+
+    for (int i = 0; i < sorted.size(); i++) {
+        Process p = sorted.get(i);
+        totalWait += p.getWaitingTime();
+        totalTurn += p.getTurnAroundTime();
+
+        System.out.print("  {\"name\": \"" + p.getName() + "\", \"waitingTime\": " + p.getWaitingTime() +
+                         ", \"turnaroundTime\": " + p.getTurnAroundTime() +
+                         ", \"quantumHistory\": " + p.getQuantumHistory() + "}");
+        if (i < sorted.size() - 1) System.out.println(",");
+        else System.out.println("");
     }
 
-    private void printResults() {
-        System.out.println("Execution Order: " + executionOrder);
-        double totalWait = 0, totalTurn = 0;
-        finishedProcesses.sort(Comparator.comparing(Process::getName));
-        for (Process p : finishedProcesses) {
-            System.out.println(p.getName() + " -> Wait: " + p.getWaitingTime() +
-                    ", Turnaround: " + p.getTurnAroundTime() +
-                    ", Quantum History: " + p.getQuantumHistory());
-            totalWait += p.getWaitingTime();
-            totalTurn += p.getTurnAroundTime();
-        }
-        System.out.println("Average Waiting Time: " + (totalWait / finishedProcesses.size()));
-        System.out.println("Average Turnaround Time: " + (totalTurn / finishedProcesses.size()));
+    System.out.println("],");
+    System.out.println("\"averageWaitingTime\": " + (totalWait / completedProcesses.size()) + ",");
+    System.out.println("\"averageTurnaroundTime\": " + (totalTurn / completedProcesses.size()));
     }
+
 }
