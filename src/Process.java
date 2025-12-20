@@ -52,4 +52,13 @@ public class Process {
     public void addQuantumHistory(int quantum){ this.quantumHistory.add(quantum); }
     public ArrayList<Integer> getQuantumHistory(){ return quantumHistory; }
     public String getName() { return name; }
+      public void resetWaitingCounter() {
+        this.waitingCounter = 0;
+    }
+    public void incrementWaitingCounter() {
+        this.waitingCounter++;
+    }
+    public int getWaitingCounter() {
+        return this.waitingCounter;
+    } 
 }
