@@ -10,6 +10,7 @@ public class Process {
     private int quantum;
     private ArrayList<Integer> quantumHistory = new ArrayList<>();
     private String name;
+    private int waitingCounter;
 
     // --- Added for AG Scheduler ---
     private int currentQuantumUsed = 0;
