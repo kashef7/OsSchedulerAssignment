@@ -9,136 +9,125 @@ public class AgScheduler extends Scheduler {
     private int segmentStartTime = 0;
     private String runningProcessName = "";
 
-        @Override
-    void schedule(int noOfProcesses, int roundRobinTimeQuantum, int ContextSwitching) {
-        // Ensure processes are sorted by arrival time
-        processes.sort(Comparator.comparingInt(Process::getArrivalTime));
-        int arrivalIndex = 0;
-        Process currentProcess = null;
-        int timeInCurrentQuantum = 0;
+       @Override
+void schedule(int noOfProcesses, int roundRobinTimeQuantum, int ContextSwitching) {
+    processes.sort(Comparator.comparingInt(Process::getArrivalTime));
+    int arrivalIndex = 0;
+    Process currentProcess = null;
+    int timeInCurrentQuantum = 0;
 
-        // Initial load for t=0
-        arrivalIndex = updateArrivingProcesses(arrivalIndex);
+    // Initial load for t=0
+    arrivalIndex = updateArrivingProcesses(arrivalIndex);
 
-        while (completedProcesses.size() < noOfProcesses) {
-            // If no current process, pick from head of readyQueue or advance time if empty
-            if (currentProcess == null) {
-                if (readyQueue.isEmpty()) {
-                    currentTime++;
-                    arrivalIndex = updateArrivingProcesses(arrivalIndex);
-                    continue;
-                } else {
-                    currentProcess = readyQueue.remove(0);
-                    timeInCurrentQuantum = 0;
-                    // start new segment
-                    runningProcessName = currentProcess.getName();
-                    segmentStartTime = currentTime;
-                    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
-                        ExcutionOrder.add(runningProcessName);
-                    }
-                }
-            }
-
-            // Execute one time unit
-            executeOneUnit(currentProcess);
-            // increment counters
-            timeInCurrentQuantum++;
-            arrivalIndex = updateArrivingProcesses(arrivalIndex);
-
-            // If process finished, finalize and continue
-            if (currentProcess.isFinished()) {
-                recordGanttForRunning();
-                currentProcess.updateQuantum(0);
-                currentProcess.setTurnAroundTime(currentTime - currentProcess.getArrivalTime());
-                currentProcess.setWaitingTime(currentProcess.getTurnAroundTime() - currentProcess.getBurstTime());
-                completedProcesses.add(currentProcess);
-                currentProcess = null;
-                timeInCurrentQuantum = 0;
+    while (completedProcesses.size() < noOfProcesses) {
+        if (currentProcess == null) {
+            if (readyQueue.isEmpty()) {
+                currentTime++;
+                arrivalIndex = updateArrivingProcesses(arrivalIndex);
                 continue;
-            }
-
-            // AG Quantum logic
-            int Q = currentProcess.getQuantum();
-            int limit1 = (int) Math.ceil(Q * 0.25);              // 25% threshold (priority check)
-            int limit2 = limit1 + (int) Math.ceil(Q * 0.25);    // cumulative after next 25% (as in reference)
-            boolean preempted = false;
-
-            // Scenario II: after reaching limit1 (priority-based)
-            if (timeInCurrentQuantum == limit1) {
-                Process best = getBestPriority();
-                // find strictly better priority in readyQueue
-                if (best != null && best.getPriority() < currentProcess.getPriority()) {
-                    // close current segment
-                    recordGanttForRunning();
-
-                    int unused = Q - timeInCurrentQuantum;
-                    int newQ = Q + (int) Math.ceil(unused / 2.0); // Mean rule
-                    currentProcess.updateQuantum(newQ);
-
-                    // requeue current at tail
-                    currentProcess.resetUsed();
-                    readyQueue.add(currentProcess);
-
-                    // remove chosen best from readyQueue and switch to it
-                    readyQueue.remove(best);
-                    currentProcess = best;
-                    // start new segment for new current process
-                    runningProcessName = currentProcess.getName();
-                    segmentStartTime = currentTime;
-                    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
-                        ExcutionOrder.add(runningProcessName);
-                    }
-                    timeInCurrentQuantum = 0;
-                    preempted = true;
-                }
-            }
-
-            // Scenario III: after reaching or passing limit2 (SJF preemption)
-            if (!preempted && timeInCurrentQuantum >= limit2) {
-                Process bestSJ = getShortestJob();
-                if (bestSJ != null && bestSJ.getRemainingTime() < currentProcess.getRemainingTime()) {
-                    // close current segment
-                    recordGanttForRunning();
-
-                    int unused = Q - timeInCurrentQuantum;
-                    int newQ = Q + unused; // Sum rule
-                    currentProcess.updateQuantum(newQ);
-
-                    // requeue current at tail
-                    currentProcess.resetUsed();
-                    readyQueue.add(currentProcess);
-
-                    // switch to shortest job immediately
-                    readyQueue.remove(bestSJ);
-                    currentProcess = bestSJ;
-                    runningProcessName = currentProcess.getName();
-                    segmentStartTime = currentTime;
-                    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
-                        ExcutionOrder.add(runningProcessName);
-                    }
-                    timeInCurrentQuantum = 0;
-                    preempted = true;
-                }
-            }
-
-            // Scenario I: quantum exhausted exactly
-            if (!preempted && timeInCurrentQuantum == Q) {
-                // close current segment
-                recordGanttForRunning();
-
-                int newQ = Q + 2; // increase rule
-                currentProcess.updateQuantum(newQ);
-                currentProcess.resetUsed();
-                readyQueue.add(currentProcess);
-
-                currentProcess = null;
+            } else {
+                currentProcess = readyQueue.remove(0);
                 timeInCurrentQuantum = 0;
+                runningProcessName = currentProcess.getName();
+                segmentStartTime = currentTime;
+                if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
+                    ExcutionOrder.add(runningProcessName);
+                }
             }
         }
 
-        // print at end (existing method)
-        printResults();
+        // 1. Execute one time unit
+        executeOneUnit(currentProcess);
+        timeInCurrentQuantum++;
+
+        // 2. CRITICAL: Handle Arrivals immediately after time increment 
+        // but BEFORE any preemption re-queuing logic.
+        arrivalIndex = updateArrivingProcesses(arrivalIndex);
+
+        // 3. Check if finished
+        if (currentProcess.isFinished()) {
+            recordGanttForRunning();
+            currentProcess.updateQuantum(0);
+            currentProcess.setTurnAroundTime(currentTime - currentProcess.getArrivalTime());
+            currentProcess.setWaitingTime(currentProcess.getTurnAroundTime() - currentProcess.getBurstTime());
+            completedProcesses.add(currentProcess);
+            currentProcess = null;
+            timeInCurrentQuantum = 0;
+            continue;
+        }
+
+        // 4. AG Quantum logic (Preemption scenarios)
+        int Q = currentProcess.getQuantum();
+        int limit1 = (int) Math.ceil(Q * 0.25);
+        int limit2 = limit1 + (int) Math.ceil(Q * 0.25);
+        boolean preempted = false;
+
+        // Scenario II: 25% Priority Preemption
+        // Scenario II: 25% Priority Preemption
+if (timeInCurrentQuantum == limit1) {
+    Process best = getBestPriority();
+    // Must be STRICTLY better priority
+    if (best != null && best.getPriority() < currentProcess.getPriority()) {
+        recordGanttForRunning();
+        
+        int unused = Q - timeInCurrentQuantum;
+        currentProcess.updateQuantum(Q + (int) Math.ceil(unused / 2.0));
+        
+        // --- ORDER MATTERS HERE ---
+        readyQueue.remove(best);          // 1. Take the new guy out of the queue
+        currentProcess.resetUsed();
+        readyQueue.add(currentProcess);   // 2. Put the old guy at the back
+        currentProcess = best;            // 3. Switch
+        
+        startNewSegment(currentProcess);
+        timeInCurrentQuantum = 0;
+        preempted = true;
     }
+}
+
+// Scenario III: 50% SJF Preemption
+if (!preempted && timeInCurrentQuantum >= limit2) {
+    Process bestSJ = getShortestJob();
+    // Must be STRICTLY shorter remaining time
+    if (bestSJ != null && bestSJ.getRemainingTime() < currentProcess.getRemainingTime()) {
+        recordGanttForRunning();
+        
+        int unused = Q - timeInCurrentQuantum;
+        currentProcess.updateQuantum(Q + unused);
+
+        // --- ORDER MATTERS HERE ---
+        readyQueue.remove(bestSJ);        // 1. Take the new guy out
+        currentProcess.resetUsed();
+        readyQueue.add(currentProcess);   // 2. Put the old guy at the back
+        currentProcess = bestSJ;          // 3. Switch
+
+        startNewSegment(currentProcess);
+        timeInCurrentQuantum = 0;
+        preempted = true;
+    }
+}
+
+        // Scenario I: Quantum Exhausted
+        if (!preempted && timeInCurrentQuantum == Q) {
+            recordGanttForRunning();
+            currentProcess.updateQuantum(Q + 2);
+            currentProcess.resetUsed();
+            readyQueue.add(currentProcess);
+
+            currentProcess = null;
+            timeInCurrentQuantum = 0;
+        }
+    }
+    printResults();
+}
+
+private void startNewSegment(Process p) {
+    runningProcessName = p.getName();
+    segmentStartTime = currentTime;
+    if (ExcutionOrder.isEmpty() || !((LinkedList<String>) ExcutionOrder).peekLast().equals(runningProcessName)) {
+        ExcutionOrder.add(runningProcessName);
+    }
+}
     // execute one time unit for process p (does NOT add to execution order repeatedly)
     private void executeOneUnit(Process p) {
         p.reduceRemaining();
@@ -220,5 +209,6 @@ public class AgScheduler extends Scheduler {
     System.out.println("\"averageWaitingTime\": " + (totalWait / completedProcesses.size()) + ",");
     System.out.println("\"averageTurnaroundTime\": " + (totalTurn / completedProcesses.size()));
     }
+  
 
 }
