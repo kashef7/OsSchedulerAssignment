@@ -151,16 +151,34 @@ public class PreemptivePriority extends Scheduler {
         queue.addAll(temp);
     }
 
-    private void printFinalStats() {
-        processes.sort(Comparator.comparing(Process::getName));
-        double twt = 0, ttt = 0;
-        for (Process p : processes) {
-            System.out.printf("{\"name\": \"%s\", \"waitingTime\": %d, \"turnaroundTime\": %d},\n", 
-                p.getName(), p.getWaitingTime(), p.getTurnAroundTime());
-            twt += p.getWaitingTime();
-            ttt += p.getTurnAroundTime();
+      private void printFinalStats() {
+        // Sort processes by numeric suffix if present, otherwise by name
+        List<Process> sorted = new ArrayList<>(processes);
+        sorted.sort((a, b) -> {
+            String na = a.getName(), nb = b.getName();
+            Integer ia = null, ib = null;
+            try { ia = Integer.valueOf(na.replaceAll("\\D+", "")); } catch (Exception e) {}
+            try { ib = Integer.valueOf(nb.replaceAll("\\D+", "")); } catch (Exception e) {}
+            if (ia != null && ib != null) return ia.compareTo(ib);
+            return na.compareTo(nb);
+        });
+
+        System.out.println("\"processResults\": [");
+        double totalWait = 0;
+        double totalTurn = 0;
+        for (int i = 0; i < sorted.size(); i++) {
+            Process p = sorted.get(i);
+            totalWait += p.getWaitingTime();
+            totalTurn += p.getTurnAroundTime();
+            System.out.print("  {\"name\": \"" + p.getName() + "\", \"waitingTime\": " + p.getWaitingTime()
+                    + ", \"turnaroundTime\": " + p.getTurnAroundTime() + "}");
+            if (i < sorted.size() - 1) System.out.println(",");
+            else System.out.println();
         }
-        System.out.printf("Average Waiting Time: %.1f\n", (twt / processes.size()));
-        System.out.printf("Average Turnaround Time: %.1f\n", (ttt / processes.size()));
+        System.out.println("],");
+        double avgW = sorted.isEmpty() ? 0.0 : (totalWait / sorted.size());
+        double avgT = sorted.isEmpty() ? 0.0 : (totalTurn / sorted.size());
+        System.out.println("\"averageWaitingTime\": " + avgW + ",");
+        System.out.println("\"averageTurnaroundTime\": " + avgT);
     }
 }
