@@ -74,6 +74,7 @@ public class PreemptivePriority extends Scheduler {
                         current.p.setWaitingTime(current.p.getTurnAroundTime() - current.p.getBurstTime());
                         completed++;
                     } else {
+                        current.ageTimer = 0;
                         readyQueue.add(current);
                     }
                     
