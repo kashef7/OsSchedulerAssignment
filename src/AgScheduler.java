@@ -163,10 +163,13 @@ private void startNewSegment(Process p) {
     }
 
     private Process getShortestJob() {
-        return readyQueue.stream()
-            .min(Comparator.comparingInt(Process::getRemainingTime)
-                .thenComparingInt(Process::getArrivalTime))
-            .orElse(null);
+        Process best = null;
+        for (Process p : readyQueue) {
+            if (best == null || p.getRemainingTime() < best.getRemainingTime()) {
+                best = p;
+            }
+        }
+        return best;
     }
     private void printResults() {
        System.out.println("Gantt Chart: " + String.join(" | ", ganttChart));
@@ -209,6 +212,6 @@ private void startNewSegment(Process p) {
     System.out.println("\"averageWaitingTime\": " + (totalWait / completedProcesses.size()) + ",");
     System.out.println("\"averageTurnaroundTime\": " + (totalTurn / completedProcesses.size()));
     }
-  
+     // set false after we finish debugging
 
 }
