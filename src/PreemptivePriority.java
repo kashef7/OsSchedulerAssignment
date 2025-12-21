@@ -12,18 +12,22 @@ public class PreemptivePriority extends Scheduler {
         int remainingBurst;
         int currentPriority;
         int ageTimer = 0;
+        int inputOrder;
 
-        ProcessState(Process p) {
+        ProcessState(Process p, int inputOrder) {
             this.p = p;
             this.remainingBurst = p.getBurstTime();
             this.currentPriority = p.getPriority();
+            this.inputOrder = inputOrder;
         }
     }
 
     @Override
     void schedule(int noOfProcesses, int rrQuantum, int contextSwitch) {
         List<ProcessState> arrivalPool = new ArrayList<>();
-        for (Process p : processes) arrivalPool.add(new ProcessState(p));
+        for (int i = 0; i < processes.size(); i++) {
+            arrivalPool.add(new ProcessState(processes.get(i), i));
+        }
         arrivalPool.sort(Comparator.comparingInt(a -> a.p.getArrivalTime()));
 
         PriorityQueue<ProcessState> readyQueue = new PriorityQueue<>((a, b) -> {
@@ -31,7 +35,7 @@ public class PreemptivePriority extends Scheduler {
                 return Integer.compare(a.currentPriority, b.currentPriority);
             if (a.p.getArrivalTime() != b.p.getArrivalTime())
                 return Integer.compare(a.p.getArrivalTime(), b.p.getArrivalTime());
-            return Integer.compare(a.p.getPriority(), b.p.getPriority());
+            return Integer.compare(a.inputOrder, b.inputOrder);
         });
 
         List<String> execOrder = new ArrayList<>();
@@ -56,7 +60,7 @@ public class PreemptivePriority extends Scheduler {
                         if (top.p.getArrivalTime() < current.p.getArrivalTime()) {
                             preempted = true;
                         } else if (top.p.getArrivalTime() == current.p.getArrivalTime() && 
-                                   top.p.getPriority() < current.p.getPriority()) {
+                                   top.inputOrder < current.inputOrder) {
                             preempted = true;
                         }
                     }
@@ -81,6 +85,11 @@ public class PreemptivePriority extends Scheduler {
                     
                     for (int i = 0; i < contextSwitch; i++) {
                         time++;
+                        pending.ageTimer++;
+                        if (agingInterval > 0 && pending.ageTimer >= agingInterval) {
+                            pending.currentPriority = Math.max(1, pending.currentPriority - 1);
+                            pending.ageTimer = 0;
+                        }
                         applyAging(readyQueue);
                         while (!arrivalPool.isEmpty() && arrivalPool.get(0).p.getArrivalTime() <= time) {
                             readyQueue.add(arrivalPool.remove(0));
@@ -94,7 +103,7 @@ public class PreemptivePriority extends Scheduler {
                                                 bestNow.p.getArrivalTime() < pending.p.getArrivalTime());
                         boolean betterOrig = (bestNow.currentPriority == pending.currentPriority && 
                                              bestNow.p.getArrivalTime() == pending.p.getArrivalTime() && 
-                                             bestNow.p.getPriority() < pending.p.getPriority());
+                                             bestNow.inputOrder < pending.inputOrder);
 
                         if (betterPrio || betterArrival || betterOrig) {
                             execOrder.add(pending.p.getName());
@@ -105,6 +114,11 @@ public class PreemptivePriority extends Scheduler {
 
                             for (int i = 0; i < contextSwitch; i++) {
                                 time++;
+                                pending.ageTimer++;
+                                if (agingInterval > 0 && pending.ageTimer >= agingInterval) {
+                                    pending.currentPriority = Math.max(1, pending.currentPriority - 1);
+                                    pending.ageTimer = 0;
+                                }
                                 applyAging(readyQueue);
                             }
                         }
@@ -137,7 +151,7 @@ public class PreemptivePriority extends Scheduler {
     }
 
     private void applyAging(PriorityQueue<ProcessState> queue) {
-        if (queue.isEmpty()) return;
+        if (agingInterval <= 0 || queue.isEmpty()) return;
         List<ProcessState> temp = new ArrayList<>();
         while (!queue.isEmpty()) {
             ProcessState ps = queue.poll();
