@@ -39,7 +39,7 @@ public class Main {
 
         String testsDir;
         if (schedulerKey.equals("AG")) {
-            testsDir = "test_cases_v5/AG";// change to test_cases_v5/AG when running from windows 
+            testsDir = "test_cases_v5/AG";// change to test_cases_v5/AG when running from windows
         } else {
             testsDir = "test_cases_v5/Other_Schedulers";//change to test_cases_v5/Other_Schedulers when running from windows
         }
@@ -138,7 +138,22 @@ public class Main {
             }
             double actualAvgWait = processesRef.stream().mapToDouble(Process::getWaitingTime).average().orElse(0.0);
             double actualAvgTurn = processesRef.stream().mapToDouble(Process::getTurnAroundTime).average().orElse(0.0);
-
+            if ("AG".equals(schedulerKey)) {
+            System.out.println("\"processResults\": [");
+            for (int i = 0; i < processesRef.size(); i++) {
+                Process p = processesRef.get(i);
+                // print quantumHistory as a JSON array
+                String qh = p.getQuantumHistory().toString();
+                System.out.print("  {\"name\": \"" + p.getName() + "\", \"waitingTime\": " + p.getWaitingTime()
+                        + ", \"turnaroundTime\": " + p.getTurnAroundTime()
+                        + ", \"quantumHistory\": " + qh + "}");
+                if (i < processesRef.size() - 1) System.out.println(",");
+                else System.out.println();
+            }
+            System.out.println("],");
+            System.out.println("\"averageWaitingTime\": " + String.format("%.2f", actualAvgWait) + ",");
+            System.out.println("\"averageTurnaroundTime\": " + String.format("%.2f", actualAvgTurn));
+        }
             // parse expected for this scheduler
             Map<String, Object> expected = parseExpectedForScheduler(json, schedulerKey);
 
